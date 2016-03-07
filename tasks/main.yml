@@ -1,2 +1,29 @@
 ---
 # tasks file for whirm.ssh_tribler_server
+
+- name: Make sure the latest versions of fail2ban and sshd are installed
+  action: apt pkg={{item}}
+      state=latest
+      update_cache=yes
+      cache_valid_time=3600
+  with_items:
+    - fail2ban
+    - ssh
+  register: upgraded
+
+- name: Harden SSH config
+  action: lineinfile dest=/etc/ssh/sshd_config
+      regexp="^.*#.*{{ item.option }} .*"
+      line="{{ item.option }} {{ item.value }}"
+  with_items:
+    - { option: "HostBasedAuthentication", value:   "no"}
+    - { option: "IgnoreRhosts",            value:   "yes"}
+    - { option: "PasswordAuthentication",  value:   "no"}
+    - { option: "PermitEmptyPasswords",    value:   "no"}
+    - { option: "PermitRootLogin",         value:   "yes"}
+    - { option: "Protocol",                value:   "2"}
+  register: config
+
+- name: Restart sshd
+  action: service name=ssh state=restarted
+  when: upgraded.changed or config.changed
